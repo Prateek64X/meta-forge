@@ -1,6 +1,6 @@
 // Navbar.tsx
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   AppBar, 
   Toolbar, 
@@ -14,22 +14,28 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import HolderWallet from './HolderWallet';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useUser } from '../contexts/UserContext'; // Import the useUser hook
 
 interface NavbarProps {
   onHolderCreated?: (address: string, userId: string) => void;
-  isLoggedIn?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ 
-  onHolderCreated = () => {}, 
-  isLoggedIn = false
-}) => {
+const Navbar: React.FC<NavbarProps> = ({ onHolderCreated = () => {} }) => {
   const theme = useTheme();
   const router = useRouter();
+  const { userData } = useUser(); // Get user data from context
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Navigate to the profile page when the profile button is clicked
+  useEffect(() => {
+    setIsLoggedIn(!!userData.userId); // Check if user is logged in based on userData
+  }, [userData]);
+
   const handleProfileClick = () => {
-    router.push('/profile');  // This will navigate to the Profile page
+    if (isLoggedIn) {
+      router.push('/profile');  // Navigate to the profile page if logged in
+    } else {
+      router.push('/login');  // Otherwise, navigate to the login page
+    }
   };
 
   return (
@@ -47,7 +53,6 @@ const Navbar: React.FC<NavbarProps> = ({
         margin: '0 auto',
         width: '100%',
       }}>
-        {/* Title with Link component */}
         <Link href="/" passHref>
           <Typography
             variant="h4"
@@ -68,14 +73,11 @@ const Navbar: React.FC<NavbarProps> = ({
           </Typography>
         </Link>
 
-        {/* Right side container */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {/* Holder Wallet Component */}
           <HolderWallet onHolderCreated={onHolderCreated} />
           
-          {/* Profile Button - always shown, navigates to the profile page */}
           <IconButton
-            onClick={handleProfileClick}  // Always navigate to Profile page
+            onClick={handleProfileClick}  // Navigate to the profile or login page
             sx={{
               color: `${theme.palette.secondary.main}`,
               '&:hover': {

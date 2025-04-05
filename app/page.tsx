@@ -1,11 +1,12 @@
-// Updated page.tsx
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Carousel from './components/Carousel';
 import GamesGrid from './components/GamesGrid';
 import { Container, Typography, Box } from '@mui/material';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import ProfilePage from './profile/page';
+import { useUser } from './contexts/UserContext';
 
 // Dynamically import GameLauncher with SSR disabled
 const GameLauncher = dynamic(
@@ -13,52 +14,71 @@ const GameLauncher = dynamic(
   { ssr: false }
 );
 
-// Dynamically import the slot machine config with SSR disabled
-const slotMachineConfig = dynamic(
-  () => import('@/app/games/slotMachineConfig').then(mod => mod.default),
-  { ssr: false }
-);
-
 const featuredGames = [
   {
     id: 1,
-    title: "Slot Machine",
-    description: "Try your luck with our exciting slot machine game!",
-    image: "1.png",
-    entryCost: 10,
-    playersOnline: 542,
-    gameConfig: slotMachineConfig
+    title: "Rooftop Run",
+    description: "Race across the rooftops of San Fransisco skylines!",
+    image: "rooftop_run.png",
+    entryCost: 1,
+    playersOnline: 0,
+    meta_link: 'https://horizon.meta.com/world/618250098043926/?locale=en_US',
+  },
+  {
+    id: 2,
+    title: "Zombie Wars",
+    description: "Dare to survive the zombie night.",
+    image: "zombie_wars.png",
+    entryCost: 1,
+    playersOnline: 0,
+    meta_link: 'https://horizon.meta.com/worlds/631234523404686/?snapshot_id=1594378804596639',
   },
 ];
 
-const allGames = [...featuredGames];
+// Slot machine game without gameConfig
+const slotMachineGame = {
+  id: 3,
+  title: "Slot Machine",
+  description: "Try your luck with our exciting slot machine game!",
+  image: "slot_machine.png",
+  entryCost: 2,
+  playersOnline: 0,
+};
+
+const allGames = [...featuredGames, slotMachineGame];
 
 export default function Home() {
+  const { userData, setUserData } = useUser(); // Use context
   const [showProfile, setShowProfile] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState({
-    userId: '',
-    address: ''
-  });
   const [showGame, setShowGame] = useState(false);
   const [currentGameConfig, setCurrentGameConfig] = useState(null);
 
+  const router = useRouter();
+
   const handleHolderCreated = (address: string, userId: string) => {
     setUserData({ address, userId });
-    setIsLoggedIn(true);
   };
 
   const handleLogout = () => {
     setShowProfile(false);
-    setIsLoggedIn(false);
     setUserData({ userId: '', address: '' });
   };
 
-  const launchGame = async (gameConfig: any) => {
-    const config = await gameConfig;
+  const launchGame = async (gameConfig: any, gameId: number, meta_link?: string) => {
+    // For games 1 and 2, we'll have meta_link
+    if (meta_link) {
+      router.push(meta_link);
+      return;
+    }
+  
+    // For game 3, we'll have gameConfig
+    const config = await gameConfig();
     setCurrentGameConfig(config);
     setShowGame(true);
   };
+
+  // Ensure userData is not null or undefined before checking its values
+  const isLoggedIn = userData?.userId && userData?.address;
 
   return (
     <main style={{
@@ -68,8 +88,8 @@ export default function Home() {
     }}>
       {showProfile && isLoggedIn ? (
         <ProfilePage 
-          userId={userData.userId}
-          address={userData.address}
+          userId={userData?.userId} // Optional chaining to prevent error if userData is null
+          address={userData?.address} // Optional chaining to prevent error if userData is null
           onLogout={handleLogout}
         />
       ) : showGame ? (
@@ -91,10 +111,10 @@ export default function Home() {
           </Typography>
           
           <Box sx={{ mb: 8 }}>
-            <Carousel games={featuredGames} onGameSelect={launchGame} />
+          <Carousel games={featuredGames} onGameSelect={(config, id) => launchGame(config, id, featuredGames.find(g => g.id === id)?.meta_link)} />
           </Box>
           
-          <GamesGrid games={allGames} onGameSelect={launchGame} />
+          <GamesGrid games={allGames} onGameSelect={(config, id) => launchGame(config, id, allGames.find(g => g.id === id)?.meta_link)} />
         </Container>
       )}
     </main>

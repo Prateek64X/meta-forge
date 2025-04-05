@@ -2,20 +2,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, IconButton, CircularProgress, Typography, keyframes } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
-import dynamic from 'next/dynamic';
 
 interface GameLauncherProps {
-  gameConfig: Phaser.Types.Core.GameConfig;
   onClose: () => void;
 }
 
+// Define the keyframes outside the component
 const coinAnimation = keyframes`
   0% { transform: scale(1); opacity: 0; }
   50% { transform: scale(1.5); opacity: 1; }
   100% { transform: scale(1); opacity: 0; }
 `;
 
-const GameLauncher = ({ gameConfig, onClose }: GameLauncherProps) => {
+const GameLauncher = ({ onClose }: GameLauncherProps) => {
   const gameContainer = useRef<HTMLDivElement>(null);
   const gameInstance = useRef<Phaser.Game | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +22,50 @@ const GameLauncher = ({ gameConfig, onClose }: GameLauncherProps) => {
   const [winAmount, setWinAmount] = useState<number | null>(null);
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [Phaser, setPhaser] = useState<typeof import('phaser') | null>(null);
+
+  // Slot Machine Configuration
+  const slotMachineConfig = {
+    type: Phaser?.AUTO,
+    width: 800,
+    height: 600,
+    physics: {
+      default: 'arcade',
+      arcade: {
+        gravity: { y: 0 },
+        debug: false
+      }
+    },
+    scene: {
+      preload: function(this: Phaser.Scene) {
+        // Load your assets here
+        this.load.image('background', '/games/slots/background.png');
+        this.load.image('reel', '/games/slots/reel.png');
+        this.load.image('symbol1', '/games/slots/symbol1.png');
+        this.load.image('symbol2', '/games/slots/symbol2.png');
+        this.load.image('symbol3', '/games/slots/symbol3.png');
+        this.load.image('lever', '/games/slots/lever.png');
+      },
+      create: function(this: Phaser.Scene) {
+        // Create game objects here
+        const background = this.add.image(400, 300, 'background');
+        const reel1 = this.add.image(300, 300, 'reel');
+        const reel2 = this.add.image(400, 300, 'reel');
+        const reel3 = this.add.image(500, 300, 'reel');
+        const lever = this.add.image(650, 300, 'lever').setInteractive();
+
+        lever.on('pointerdown', () => {
+          if (typeof (window as any).updateCoins === 'function') {
+            // Random win between -2 and 10 coins
+            const win = Math.floor(Math.random() * 13) - 2;
+            (window as any).updateCoins(win);
+          }
+        });
+      },
+      update: function() {
+        // Game loop
+      }
+    }
+  };
 
   // Dynamically import Phaser on client side
   useEffect(() => {
@@ -52,8 +95,9 @@ const GameLauncher = ({ gameConfig, onClose }: GameLauncherProps) => {
     if (!Phaser || !gameContainer.current) return;
 
     const config: Phaser.Types.Core.GameConfig = {
-      ...gameConfig,
-      parent: gameContainer.current
+      ...slotMachineConfig,
+      parent: gameContainer.current,
+      type: Phaser.AUTO
     };
 
     gameInstance.current = new Phaser.Game(config);
@@ -66,7 +110,7 @@ const GameLauncher = ({ gameConfig, onClose }: GameLauncherProps) => {
       gameInstance.current?.destroy(true);
       gameInstance.current = null;
     };
-  }, [Phaser, gameConfig]);
+  }, [Phaser]);
 
   if (!Phaser) {
     return (
@@ -155,7 +199,7 @@ const GameLauncher = ({ gameConfig, onClose }: GameLauncherProps) => {
           </Typography>
 
           {/* Win Animation */}
-          {showWinAnimation && winAmount && (
+          {showWinAnimation && winAmount !== null && (
             <Typography 
               variant="h6"
               sx={{

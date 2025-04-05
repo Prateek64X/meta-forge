@@ -15,11 +15,11 @@ import {
   Box
 } from '@mui/material';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
+import { useUser } from '../contexts/UserContext';
 
 interface TokenData {
   name: string;
@@ -29,11 +29,12 @@ interface TokenData {
 }
 
 interface GetBalanceProps {
-  holderAddress: string;
   compact?: boolean;
 }
 
-const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
+const GetBalance = ({ compact = false }: GetBalanceProps) => {
+  const { userData } = useUser();
+  const { userId, address } = userData;
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +43,18 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
   const [copiedId, setCopiedId] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
 
-  const userId = holderAddress ? `user_${holderAddress.slice(2, 10)}` : '';
-
   useEffect(() => {
     const fetchTokenBalance = async () => {
       try {
+        if (!address) {
+          setLoading(false);
+          return;
+        }
         setLoading(true);
         const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS;
+        
         const response = await fetch(
-          `https://api.metal.build/holder/${holderAddress}/token/${tokenAddress}`,
+          `https://api.metal.build/holder/${address}/token/${tokenAddress}`,
           {
             headers: {
               'x-api-key': process.env.NEXT_PUBLIC_METAL_API_KEY || '',
@@ -59,7 +63,7 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
         );
 
         if (!response.ok) {
-          throw new Error('Failed to fetch token balance');
+          throw new Error(`Failed to fetch token balance: ${response.status}`);
         }
 
         const data = await response.json();
@@ -71,10 +75,8 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
       }
     };
 
-    if (holderAddress) {
-      fetchTokenBalance();
-    }
-  }, [holderAddress]);
+    fetchTokenBalance();
+  }, [address]);
 
   const handleCopy = (text: string, type: 'id' | 'address') => {
     navigator.clipboard.writeText(text);
@@ -229,7 +231,7 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
           }
         }}
       >
-        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid rgba(255,215,0,0.2)' }}>
+        <DialogTitle sx={{ fontWeight: 'bold', borderBottom: '1px solid rgba(255,215,0,0.2)' }} >
           Wallet Details
         </DialogTitle>
         <DialogContent>
@@ -271,7 +273,7 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
 
             <TextField
               label="Wallet Address"
-              value={showAddress ? holderAddress : '••••••••••••••••••••••••••••••••'}
+              value={showAddress ? address : '••••••••••••••••••••••••••••••••'}
               fullWidth
               InputProps={{
                 readOnly: true,
@@ -292,7 +294,7 @@ const GetBalance = ({ holderAddress, compact = false }: GetBalanceProps) => {
                     {showAddress && (
                       <Tooltip title={copiedAddress ? 'Copied!' : 'Copy to clipboard'}>
                         <IconButton 
-                          onClick={() => handleCopy(holderAddress, 'address')}
+                          onClick={() => handleCopy(address, 'address')}
                           sx={{ color: '#ffd700' }}
                         >
                           {copiedAddress ? <CheckIcon color="success" /> : <ContentCopyIcon />}

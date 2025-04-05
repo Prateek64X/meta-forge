@@ -1,10 +1,11 @@
-// layout.tsx
+// app/layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import ThemeRegistry from './components/ThemeRegistry';
 import { DeveloperModeProvider } from './contexts/DeveloperModeContext';
-import Navbar from './components/Navbar'; // Import Navbar here
+import { UserProvider } from './contexts/UserContext'; // ⬅️ import it
+import Navbar from './components/Navbar';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,11 +23,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <DeveloperModeProvider>
-          <ThemeRegistry>
-            {/* Add Navbar here */}
-            <Navbar />
-            {children}
-          </ThemeRegistry>
+          <UserProvider> {/* ⬅️ wrap everything with UserProvider */}
+            <ThemeRegistry>
+              <Navbar />
+              {children}
+            </ThemeRegistry>
+          </UserProvider>
         </DeveloperModeProvider>
       </body>
     </html>

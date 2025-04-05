@@ -1,25 +1,21 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogContentText,
   DialogActions,
   Box,
-  IconButton,
-  Typography,
   CircularProgress,
-  Snackbar,
   Alert,
-  TextField
+  TextField,
+  Typography 
 } from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LoginIcon from '@mui/icons-material/Login';
-import { generateUserId } from './utils/idGenerator';
 import GetBalance from './GetBalance';
+import { useUser } from '../contexts/UserContext';
 
 interface HolderResponse {
   success: boolean;
@@ -29,24 +25,22 @@ interface HolderResponse {
   tokens: any[];
 }
 
-interface HolderWalletProps {
-  onHolderCreated: (address: string, userId: string) => void;
-}
-
-const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
-  const [openDialog, setOpenDialog] = useState(false);
-  const [holderData, setHolderData] = useState<HolderResponse | null>(null);
+const HolderWallet = () => {
+  const { userData, setUserData } = useUser();
+  const [openLoginDialog, setOpenLoginDialog] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState('');
-  const [copySuccess, setCopySuccess] = useState(false);
-  const [copiedItem, setCopiedItem] = useState<'address' | 'userId' | null>(null);
   const [userIdInput, setUserIdInput] = useState('');
-  const [holderValid, setHolderValid] = useState(false);
-  const [holderAddress, setHolderAddress] = useState('');
+
+  // Debug effect to log userData changes
+  useEffect(() => {
+    console.log('Current userData:', userData);
+  }, [userData]);
 
   const handleHolderRequest = async (userId: string) => {
     try {
+      console.log('[DEBUG] Making holder request with userId:', userId);
       const response = await fetch(`https://api.metal.build/holder/${userId}`, {
         method: 'PUT',
         headers: {
@@ -55,33 +49,58 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
         },
       });
 
-      const data = await response.json();
+      const data: HolderResponse = await response.json();
+      console.log('[DEBUG] API Response:', {
+        status: response.status,
+        id: data.id,
+        address: data.address
+      });
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to access holder');
       }
 
+      if (!data.id || !data.address) {
+        console.warn('[WARNING] API response missing id or address:', data);
+        throw new Error('Invalid holder data received');
+      }
+
       return data;
     } catch (err) {
+      console.error('[ERROR] in handleHolderRequest:', err);
       throw err instanceof Error ? err : new Error('Failed to access holder');
     }
   };
 
   const handleRegister = async () => {
+    console.log('[DEBUG] Starting registration flow');
     setLoading(true);
     setError('');
 
     try {
-      const userId = generateUserId();
-      const data = await handleHolderRequest(userId);
+      const newUserId = Math.random().toString(36).substring(2, 15);
+      console.log('[DEBUG] Generated new userId:', newUserId);
+      
+      const data = await handleHolderRequest(newUserId);
+      console.log('[DEBUG] Registration successful, data:', data);
 
-      setHolderData(data);
-      setOpenDialog(true);
-      onHolderCreated(data.address, data.id);
+      const newUserData = {
+        userId: data.id,
+        address: data.address,
+        developerMode: userData.developerMode
+      };
+      console.log('[DEBUG] Setting new user data:', newUserData);
+
+      setUserData(newUserData);
+      localStorage.setItem('userData', JSON.stringify(newUserData));
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create holder');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create holder';
+      console.error('[ERROR] Registration failed:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
+      setOpenLoginDialog(false);
     }
   };
 
@@ -90,45 +109,50 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
     setError('');
 
     try {
-      const data = await handleHolderRequest(userIdInput);
+      if (!userIdInput.trim()) {
+        throw new Error('Please enter a valid User ID');
+      }
 
-      // If we get here, holder is valid
-      setHolderValid(true);
-      setHolderAddress(data.address);
-      setHolderData(data);
-      onHolderCreated(data.address, data.id);
+      const data = await handleHolderRequest(userIdInput);
+      console.log('[DEBUG] Received data in login:', data);
+      console.log('[DEBUG] ID:', data.id, '| Address:', data.address);
+
+      const newUserData = {
+        userId: data.id,
+        address: data.address,
+        developerMode: userData.developerMode
+      };
+      console.log('[DEBUG] Setting user data from login:', newUserData);
+
+      setUserData(newUserData);
+      localStorage.setItem('userData', JSON.stringify(newUserData));
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      console.error('[ERROR] Login failed:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoginLoading(false);
+      setOpenLoginDialog(false);
     }
   };
 
-  const handleCopy = (text: string, item: 'address' | 'userId') => {
-    navigator.clipboard.writeText(text);
-    setCopiedItem(item);
-    setCopySuccess(true);
-    setTimeout(() => {
-      setCopiedItem(null);
-    }, 2000);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-  };
-
-  const [openLoginDialog, setOpenLoginDialog] = useState(false);
-
   const handleOpenLoginDialog = () => {
+    console.log('[DEBUG] Opening login dialog');
     setOpenLoginDialog(true);
   };
 
   const handleCloseLoginDialog = () => {
+    console.log('[DEBUG] Closing login dialog');
     setOpenLoginDialog(false);
     setError('');
   };
 
-  if (holderValid && holderAddress && holderData) {
+  if (userData.userId && userData.address) {
+    console.log('[DEBUG] Rendering connected wallet state', {
+      userId: userData.userId,
+      address: userData.address
+    });
     return (
       <Box
         sx={{
@@ -138,11 +162,12 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
           minWidth: '120px',
         }}
       >
-        <GetBalance holderAddress={holderAddress} compact />
+        <GetBalance compact />
       </Box>
     );
   }
 
+  console.log('[DEBUG] Rendering connect wallet button');
   return (
     <>
       <Button
@@ -184,7 +209,6 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
         Connect
       </Button>
 
-      {/* Login Dialog */}
       <Dialog open={openLoginDialog} onClose={handleCloseLoginDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>
@@ -197,13 +221,16 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
             <TextField
               label="User ID"
               value={userIdInput}
-              onChange={(e) => setUserIdInput(e.target.value)}
+              onChange={(e) => {
+                console.log('[DEBUG] User ID input changed:', e.target.value);
+                setUserIdInput(e.target.value);
+              }}
               fullWidth
               required
               helperText="Enter your existing holder ID"
               sx={{ mt: 2 }}
             />
-            
+
             <Button
               variant="contained"
               color="primary"
@@ -225,11 +252,11 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
             >
               {loginLoading ? 'Connecting...' : 'Login with Existing ID'}
             </Button>
-            
+
             <Typography variant="body2" align="center" sx={{ my: 1 }}>
               ─── OR ───
             </Typography>
-            
+
             <Button
               variant="outlined"
               color="primary"
@@ -272,92 +299,6 @@ const HolderWallet = ({ onHolderCreated }: HolderWalletProps) => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Registration Success Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <AccountBalanceWalletIcon color="primary" />
-            <Typography variant="h6" fontWeight="bold">Wallet Created Successfully!</Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Your new wallet has been created. Please save these details:
-          </DialogContentText>
-          
-          <Box mt={3}>
-            <Typography variant="subtitle1" fontWeight="bold">Wallet Address</Typography>
-            <Box
-              p={2}
-              bgcolor="action.hover"
-              borderRadius="12px"
-              display="flex"
-              alignItems="center"
-              justifyContent="space-between"
-              mt={1}
-            >
-              <Typography variant="body1" fontFamily="monospace" sx={{ wordBreak: 'break-all' }}>
-                {holderData?.address}
-              </Typography>
-              <IconButton 
-                onClick={() => holderData?.address && handleCopy(holderData.address, 'address')}
-                color="primary"
-                aria-label="Copy address"
-                size="small"
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          </Box>
-
-          <Box mt={3}>
-            <Typography variant="subtitle1" fontWeight="bold">User ID</Typography>
-            <Box
-              p={2}
-              bgcolor="action.hover"
-              borderRadius="12px"
-              display="flex"
-              alignItems="center"
-              justifyContent="space-between"
-              mt={1}
-            >
-              <Typography variant="body1" fontFamily="monospace">
-                {holderData?.id}
-              </Typography>
-              <IconButton 
-                onClick={() => holderData?.id && handleCopy(holderData.id, 'userId')}
-                color="primary"
-                aria-label="Copy user ID"
-                size="small"
-              >
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={handleCloseDialog} 
-            color="primary"
-            variant="contained"
-            sx={{ fontWeight: 'bold', borderRadius: '12px', px: 3 }}
-          >
-            Done
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar
-        open={copySuccess}
-        autoHideDuration={2000}
-        onClose={() => setCopySuccess(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity="success" sx={{ width: '100%' }}>
-          {copiedItem === 'address' ? 'Wallet Address' : 'User ID'} copied to clipboard!
-        </Alert>
-      </Snackbar>
     </>
   );
 };
